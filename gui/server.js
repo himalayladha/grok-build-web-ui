@@ -24,7 +24,7 @@ if (!fs.existsSync(defaultProjectFolder)) {
   fs.mkdirSync(defaultProjectFolder, { recursive: true });
   fs.writeFileSync(
     path.join(defaultProjectFolder, 'index.html'),
-    `<!DOCTYPE html>\n<html>\n<head><title>My First Project</title></head>\n<body style="background:#090c15;color:#fff;font-family:sans-serif;padding:40px;">\n  <h1>Hello from Grok Build Studio! 🚀</h1>\n  <p>Your web app is running live.</p>\n</body>\n</html>\n`
+    `<!DOCTYPE html>\n<html>\n<head><title>My First Project</title></head>\n<body style="background:#090c15;color:#fff;font-family:sans-serif;padding:40px;">\n  <h1>Hello from Grok Build Studio! 🚀</h1>\n  <p>Your project is running live.</p>\n</body>\n</html>\n`
   );
   fs.writeFileSync(
     path.join(defaultProjectFolder, 'index.js'),
@@ -47,14 +47,6 @@ if (fs.existsSync(distPath)) {
 
 // Serve Projects static files for web preview
 app.use('/workspace-files', express.static(PROJECTS_ROOT));
-
-// REST API: Get Preview URL for HTML files
-app.get('/api/preview-url', (req, res) => {
-  const relPath = req.query.path || 'index.html';
-  const projFolder = path.basename(currentWorkspace);
-  const previewUrl = `http://localhost:${PORT}/workspace-files/${projFolder}/${relPath}`;
-  res.json({ url: previewUrl, projFolder, relPath });
-});
 
 // REST API: Get System & Grok Status
 app.get('/api/status', (req, res) => {
@@ -311,56 +303,53 @@ wss.on('connection', (ws) => {
     try {
       const data = JSON.parse(message.toString());
       
-      // Action: Run File Directly
-      if (data.action === 'run_file') {
-        const { filePath } = data;
-        const absPath = path.resolve(currentWorkspace, filePath);
-        const ext = path.extname(filePath).toLowerCase();
+      // Action: Run Project Folder
+      if (data.action === 'run_project') {
+        const targetWorkspace = data.projectPath ? path.resolve(data.projectPath) : currentWorkspace;
+        const projName = path.basename(targetWorkspace);
+        
+        const files = fs.existsSync(targetWorkspace) ? fs.readdirSync(targetWorkspace) : [];
 
-        // HTML Files -> Return preview URL for opening in a new tab
-        if (ext === '.html' || ext === '.htm') {
-          const projFolder = path.basename(currentWorkspace);
-          const url = `http://localhost:${PORT}/workspace-files/${projFolder}/${filePath}`;
-          ws.send(JSON.stringify({ type: 'open_url', url, filePath }));
-          ws.send(JSON.stringify({ type: 'raw_output', text: `🌐 Opened [${filePath}] in new browser tab: ${url}` }));
+        // 1. Web App with index.html -> Open in Browser Tab
+        if (files.includes('index.html')) {
+          const url = `http://localhost:${PORT}/workspace-files/${projName}/index.html`;
+          ws.send(JSON.stringify({ type: 'open_url', url, projName }));
+          ws.send(JSON.stringify({ type: 'raw_output', text: `🌐 Opened project [${projName}] in web browser tab: ${url}` }));
           ws.send(JSON.stringify({ type: 'process_exit', code: 0 }));
           return;
         }
 
-        // Executable Code Files
+        // 2. Node Project with package.json
         let cmd = '';
         let args = [];
 
-        if (ext === '.js' || ext === '.mjs' || ext === '.cjs') {
-          cmd = 'node';
-          args = [absPath];
-        } else if (ext === '.py') {
-          cmd = 'python';
-          args = [absPath];
-        } else if (ext === '.sh') {
-          cmd = 'bash';
-          args = [absPath];
-        } else if (ext === '.bat' || ext === '.cmd') {
-          cmd = 'cmd.exe';
-          args = ['/c', absPath];
-        } else if (ext === '.ps1') {
-          cmd = 'powershell';
-          args = ['-File', absPath];
-        } else if (ext === '.json' && path.basename(filePath) === 'package.json') {
+        if (files.includes('package.json')) {
           cmd = 'npm';
           args = ['start'];
-        } else if (ext === '.rs') {
+        } else if (files.includes('index.js')) {
+          cmd = 'node';
+          args = ['index.js'];
+        } else if (files.includes('server.js')) {
+          cmd = 'node';
+          args = ['server.js'];
+        } else if (files.includes('main.py')) {
+          cmd = 'python';
+          args = ['main.py'];
+        } else if (files.includes('app.py')) {
+          cmd = 'python';
+          args = ['app.py'];
+        } else if (files.includes('Cargo.toml')) {
           cmd = 'cargo';
           args = ['run'];
         } else {
-          ws.send(JSON.stringify({ type: 'raw_output', text: `📄 [FILE PREVIEW] ${filePath} is a document file (use Code Viewer to inspect).` }));
+          ws.send(JSON.stringify({ type: 'raw_output', text: `⚠️ No executable entrypoint (index.html, package.json, index.js, app.py) found in project [${projName}].` }));
           ws.send(JSON.stringify({ type: 'process_exit', code: 0 }));
           return;
         }
 
-        ws.send(JSON.stringify({ type: 'status', message: `▶️ Running file [${cmd} ${args.join(' ')}] in ${path.basename(currentWorkspace)}` }));
+        ws.send(JSON.stringify({ type: 'status', message: `▶️ Running Project Folder [${cmd} ${args.join(' ')}] in ${projName}` }));
 
-        activeProcess = spawn(cmd, args, { cwd: currentWorkspace, shell: true });
+        activeProcess = spawn(cmd, args, { cwd: targetWorkspace, shell: true });
 
         activeProcess.stdout.on('data', (chunk) => {
           ws.send(JSON.stringify({ type: 'raw_output', text: chunk.toString() }));

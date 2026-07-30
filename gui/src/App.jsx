@@ -259,13 +259,17 @@ export default function App() {
     }
   };
 
-  const handleRunFile = (filePath) => {
-    if (!filePath || isExecuting) return;
+  // Run Project Folder
+  const handleRunProject = (projectPath) => {
+    const targetPath = projectPath || activeWorkspace;
+    const projName = targetPath.split('\\').pop() || targetPath.split('/').pop() || 'Project';
+
+    if (isExecuting) return;
 
     const runTurn = {
       id: Date.now().toString(),
       role: 'assistant',
-      content: `▶️ **Running File**: \`${filePath}\``,
+      content: `▶️ **Running Project Folder**: \`${projName}\``,
       isStreaming: true,
       timestamp: new Date().toLocaleTimeString()
     };
@@ -276,8 +280,8 @@ export default function App() {
 
     if (wsRef.current && wsConnected) {
       wsRef.current.send(JSON.stringify({
-        action: 'run_file',
-        filePath
+        action: 'run_project',
+        projectPath: targetPath
       }));
     }
   };
@@ -581,7 +585,14 @@ export default function App() {
                     </div>
 
                     <div className="flex items-center gap-1">
-                      {isSelected && <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400/80" />}
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleRunProject(proj.path); }}
+                        className="p-1 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 rounded transition"
+                        title="▶️ Run Project Folder"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                      </button>
+
                       <button 
                         onClick={(e) => { e.stopPropagation(); handleDeleteProject(proj.path, proj.name); }}
                         className="opacity-0 group-hover/proj:opacity-100 p-0.5 text-slate-400 hover:text-rose-400 transition"
@@ -622,24 +633,13 @@ export default function App() {
                               <span className="truncate">{file.name}</span>
                             </div>
 
-                            <div className="flex items-center gap-1">
-                              {!file.isDirectory && (
-                                <button 
-                                  onClick={(e) => { e.stopPropagation(); handleRunFile(file.path); }}
-                                  className="p-1 hover:bg-cyan-500/20 text-emerald-400 hover:text-emerald-300 rounded transition"
-                                  title="▶️ Run / Preview File in New Tab"
-                                >
-                                  <Play className="w-3 h-3 fill-current" />
-                                </button>
-                              )}
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); handleDeleteItem(file.path); }}
-                                className="opacity-0 group-hover/file:opacity-100 p-0.5 text-slate-400 hover:text-rose-400 transition"
-                                title="Delete File"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </div>
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); handleDeleteItem(file.path); }}
+                              className="opacity-0 group-hover/file:opacity-100 p-0.5 text-slate-400 hover:text-rose-400 transition"
+                              title="Delete File"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
                           </div>
                         ))
                       )}
@@ -710,13 +710,22 @@ export default function App() {
                               </p>
                             </div>
                           </div>
-                          <span className="text-[11px] px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-mono border border-emerald-500/40 font-semibold">
-                            Ready
-                          </span>
+
+                          <div className="flex items-center gap-2">
+                            <button 
+                              onClick={() => handleRunProject(turn.projectPath)}
+                              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-extrabold rounded-xl text-xs shadow-lg shadow-emerald-500/20 transition cursor-pointer"
+                            >
+                              <Play className="w-3.5 h-3.5 fill-current" /> Run Project
+                            </button>
+                            <span className="text-[11px] px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-mono border border-emerald-500/40 font-semibold">
+                              Ready
+                            </span>
+                          </div>
                         </div>
 
                         <p className="text-xs text-slate-200 leading-relaxed">
-                          This conversation is isolated to <strong className="text-cyan-300">{turn.projectName}</strong>. Grok will create files, execute commands, and write code step-by-step directly in this local directory.
+                          This conversation is isolated to <strong className="text-cyan-300">{turn.projectName}</strong>. Grok will create files, execute commands, and write code step-by-step directly in this local directory. Click <strong className="text-emerald-400">Run Project</strong> above anytime to launch your app live!
                         </p>
 
                         <div className="space-y-3 pt-2">
@@ -891,14 +900,12 @@ export default function App() {
                 <span className="font-mono text-sm text-cyan-400 font-bold">
                   {selectedFile ? `📄 ${selectedFile}` : 'Select a file from the projects sidebar'}
                 </span>
-                {selectedFile && (
-                  <button 
-                    onClick={() => handleRunFile(selectedFile)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-bold transition cursor-pointer"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" /> Run / Preview in New Tab
-                  </button>
-                )}
+                <button 
+                  onClick={() => handleRunProject(activeWorkspace)}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-bold transition cursor-pointer"
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" /> Run Active Project
+                </button>
               </div>
               <div className="flex-1 overflow-auto mt-3 bg-[#0b0e17] border border-slate-800 rounded-xl p-4 font-mono text-xs text-slate-200 leading-relaxed">
                 <pre>{fileContent || '// Select a file from the project sidebar to inspect code...'}</pre>
