@@ -286,145 +286,159 @@ app.post('/api/files/delete', (req, res) => {
   }
 });
 
-// Start Server
-const PORT = process.env.PORT || 3001;
-const server = app.listen(PORT, () => {
-  console.log(`Grok Build GUI Backend running on http://localhost:${PORT}`);
-});
+// Setup WebSocket Server Handlers
+function attachWebSocket(server, currentPort) {
+  const wss = new WebSocketServer({ server, path: '/ws' });
 
-// WebSocket Server
-const wss = new WebSocketServer({ server, path: '/ws' });
+  wss.on('connection', (ws) => {
+    let activeProcess = null;
 
-wss.on('connection', (ws) => {
-  console.log('GUI client connected to WebSocket');
-  let activeProcess = null;
-
-  ws.on('message', (message) => {
-    try {
-      const data = JSON.parse(message.toString());
-      
-      // Action: Run Project Folder
-      if (data.action === 'run_project') {
-        const targetWorkspace = data.projectPath ? path.resolve(data.projectPath) : currentWorkspace;
-        const projName = path.basename(targetWorkspace);
+    ws.on('message', (message) => {
+      try {
+        const data = JSON.parse(message.toString());
         
-        const files = fs.existsSync(targetWorkspace) ? fs.readdirSync(targetWorkspace) : [];
+        // Action: Run Project Folder
+        if (data.action === 'run_project') {
+          const targetWorkspace = data.projectPath ? path.resolve(data.projectPath) : currentWorkspace;
+          const projName = path.basename(targetWorkspace);
+          const files = fs.existsSync(targetWorkspace) ? fs.readdirSync(targetWorkspace) : [];
 
-        // 1. Web App with index.html -> Open in Browser Tab
-        if (files.includes('index.html')) {
-          const url = `http://localhost:${PORT}/workspace-files/${projName}/index.html`;
-          ws.send(JSON.stringify({ type: 'open_url', url, projName }));
-          ws.send(JSON.stringify({ type: 'raw_output', text: `🌐 Opened project [${projName}] in web browser tab: ${url}` }));
-          ws.send(JSON.stringify({ type: 'process_exit', code: 0 }));
-          return;
-        }
-
-        // 2. Node Project with package.json
-        let cmd = '';
-        let args = [];
-
-        if (files.includes('package.json')) {
-          cmd = 'npm';
-          args = ['start'];
-        } else if (files.includes('index.js')) {
-          cmd = 'node';
-          args = ['index.js'];
-        } else if (files.includes('server.js')) {
-          cmd = 'node';
-          args = ['server.js'];
-        } else if (files.includes('main.py')) {
-          cmd = 'python';
-          args = ['main.py'];
-        } else if (files.includes('app.py')) {
-          cmd = 'python';
-          args = ['app.py'];
-        } else if (files.includes('Cargo.toml')) {
-          cmd = 'cargo';
-          args = ['run'];
-        } else {
-          ws.send(JSON.stringify({ type: 'raw_output', text: `⚠️ No executable entrypoint (index.html, package.json, index.js, app.py) found in project [${projName}].` }));
-          ws.send(JSON.stringify({ type: 'process_exit', code: 0 }));
-          return;
-        }
-
-        ws.send(JSON.stringify({ type: 'status', message: `▶️ Running Project Folder [${cmd} ${args.join(' ')}] in ${projName}` }));
-
-        activeProcess = spawn(cmd, args, { cwd: targetWorkspace, shell: true });
-
-        activeProcess.stdout.on('data', (chunk) => {
-          ws.send(JSON.stringify({ type: 'raw_output', text: chunk.toString() }));
-        });
-
-        activeProcess.stderr.on('data', (chunk) => {
-          ws.send(JSON.stringify({ type: 'raw_error', text: chunk.toString() }));
-        });
-
-        activeProcess.on('close', (code) => {
-          ws.send(JSON.stringify({ type: 'process_exit', code }));
-          activeProcess = null;
-        });
-
-        activeProcess.on('error', (err) => {
-          ws.send(JSON.stringify({ type: 'error', message: err.message }));
-          activeProcess = null;
-        });
-      }
-
-      // Action: Run Grok Agent Prompt
-      if (data.action === 'run_prompt') {
-        const { prompt, model, reasoningEffort, alwaysApprove, worktree, sessionResume } = data;
-        
-        const args = ['-p', prompt, '--output-format', 'streaming-json'];
-        if (model && model !== 'grok-4.5') args.push('--model', model);
-        if (reasoningEffort) args.push('--reasoning-effort', reasoningEffort);
-        if (alwaysApprove) args.push('--always-approve');
-        if (worktree) args.push('--worktree');
-        if (sessionResume) args.push('--resume');
-
-        ws.send(JSON.stringify({ type: 'status', message: `Executing prompt in workspace: ${path.basename(currentWorkspace)}` }));
-
-        activeProcess = spawn(GROK_BIN, args, { cwd: currentWorkspace, env: process.env });
-
-        activeProcess.stdout.on('data', (chunk) => {
-          const lines = chunk.toString().split('\n');
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            try {
-              const jsonMsg = JSON.parse(line);
-              ws.send(JSON.stringify({ type: 'grok_event', event: jsonMsg }));
-            } catch {
-              ws.send(JSON.stringify({ type: 'raw_output', text: line }));
-            }
+          if (files.includes('index.html')) {
+            const url = `http://localhost:${currentPort}/workspace-files/${projName}/index.html`;
+            ws.send(JSON.stringify({ type: 'open_url', url, projName }));
+            ws.send(JSON.stringify({ type: 'raw_output', text: `🌐 Opened project [${projName}] in web browser tab: ${url}` }));
+            ws.send(JSON.stringify({ type: 'process_exit', code: 0 }));
+            return;
           }
-        });
 
-        activeProcess.stderr.on('data', (chunk) => {
-          ws.send(JSON.stringify({ type: 'raw_error', text: chunk.toString() }));
-        });
+          let cmd = '';
+          let args = [];
 
-        activeProcess.on('close', (code) => {
-          ws.send(JSON.stringify({ type: 'process_exit', code }));
-          activeProcess = null;
-        });
+          if (files.includes('package.json')) {
+            cmd = 'npm';
+            args = ['start'];
+          } else if (files.includes('index.js')) {
+            cmd = 'node';
+            args = ['index.js'];
+          } else if (files.includes('server.js')) {
+            cmd = 'node';
+            args = ['server.js'];
+          } else if (files.includes('main.py')) {
+            cmd = 'python';
+            args = ['main.py'];
+          } else if (files.includes('app.py')) {
+            cmd = 'python';
+            args = ['app.py'];
+          } else if (files.includes('Cargo.toml')) {
+            cmd = 'cargo';
+            args = ['run'];
+          } else {
+            ws.send(JSON.stringify({ type: 'raw_output', text: `⚠️ No executable entrypoint (index.html, package.json, index.js, app.py) found in project [${projName}].` }));
+            ws.send(JSON.stringify({ type: 'process_exit', code: 0 }));
+            return;
+          }
 
-        activeProcess.on('error', (err) => {
-          ws.send(JSON.stringify({ type: 'error', message: err.message }));
-          activeProcess = null;
-        });
+          ws.send(JSON.stringify({ type: 'status', message: `▶️ Running Project Folder [${cmd} ${args.join(' ')}] in ${projName}` }));
+
+          activeProcess = spawn(cmd, args, { cwd: targetWorkspace, shell: true });
+
+          activeProcess.stdout.on('data', (chunk) => {
+            ws.send(JSON.stringify({ type: 'raw_output', text: chunk.toString() }));
+          });
+
+          activeProcess.stderr.on('data', (chunk) => {
+            ws.send(JSON.stringify({ type: 'raw_error', text: chunk.toString() }));
+          });
+
+          activeProcess.on('close', (code) => {
+            ws.send(JSON.stringify({ type: 'process_exit', code }));
+            activeProcess = null;
+          });
+
+          activeProcess.on('error', (err) => {
+            ws.send(JSON.stringify({ type: 'error', message: err.message }));
+            activeProcess = null;
+          });
+        }
+
+        // Action: Run Grok Agent Prompt
+        if (data.action === 'run_prompt') {
+          const { prompt, model, reasoningEffort, alwaysApprove, worktree, sessionResume } = data;
+          
+          const args = ['-p', prompt, '--output-format', 'streaming-json'];
+          if (model && model !== 'grok-4.5') args.push('--model', model);
+          if (reasoningEffort) args.push('--reasoning-effort', reasoningEffort);
+          if (alwaysApprove) args.push('--always-approve');
+          if (worktree) args.push('--worktree');
+          if (sessionResume) args.push('--resume');
+
+          ws.send(JSON.stringify({ type: 'status', message: `Executing prompt in workspace: ${path.basename(currentWorkspace)}` }));
+
+          activeProcess = spawn(GROK_BIN, args, { cwd: currentWorkspace, env: process.env });
+
+          activeProcess.stdout.on('data', (chunk) => {
+            const lines = chunk.toString().split('\n');
+            for (const line of lines) {
+              if (!line.trim()) continue;
+              try {
+                const jsonMsg = JSON.parse(line);
+                ws.send(JSON.stringify({ type: 'grok_event', event: jsonMsg }));
+              } catch {
+                ws.send(JSON.stringify({ type: 'raw_output', text: line }));
+              }
+            }
+          });
+
+          activeProcess.stderr.on('data', (chunk) => {
+            ws.send(JSON.stringify({ type: 'raw_error', text: chunk.toString() }));
+          });
+
+          activeProcess.on('close', (code) => {
+            ws.send(JSON.stringify({ type: 'process_exit', code }));
+            activeProcess = null;
+          });
+
+          activeProcess.on('error', (err) => {
+            ws.send(JSON.stringify({ type: 'error', message: err.message }));
+            activeProcess = null;
+          });
+        }
+
+        if (data.action === 'cancel_prompt' && activeProcess) {
+          activeProcess.kill('SIGTERM');
+          ws.send(JSON.stringify({ type: 'status', message: 'Execution cancelled.' }));
+        }
+      } catch (err) {
+        ws.send(JSON.stringify({ type: 'error', message: 'Invalid WebSocket payload: ' + err.message }));
       }
+    });
 
-      if (data.action === 'cancel_prompt' && activeProcess) {
+    ws.on('close', () => {
+      if (activeProcess) {
         activeProcess.kill('SIGTERM');
-        ws.send(JSON.stringify({ type: 'status', message: 'Execution cancelled.' }));
       }
-    } catch (err) {
-      ws.send(JSON.stringify({ type: 'error', message: 'Invalid WebSocket payload: ' + err.message }));
-    }
+    });
+  });
+}
+
+// Start Server with Automatic Free Port Selection
+function startServer(portToTry) {
+  const server = app.listen(portToTry, () => {
+    console.log(`\n============================================================`);
+    console.log(`  🚀 Grok Build GUI running on http://localhost:${portToTry}`);
+    console.log(`============================================================\n`);
+    attachWebSocket(server, portToTry);
   });
 
-  ws.on('close', () => {
-    if (activeProcess) {
-      activeProcess.kill('SIGTERM');
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.log(`Port ${portToTry} is in use, automatically trying http://localhost:${portToTry + 1}...`);
+      startServer(portToTry + 1);
+    } else {
+      console.error('Server failed to start:', err);
     }
   });
-});
+}
+
+const INITIAL_PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
+startServer(INITIAL_PORT);
