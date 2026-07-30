@@ -9,9 +9,29 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Root Projects Directory
-const PROJECTS_ROOT = path.resolve(__dirname, '..', '..');
-let currentWorkspace = path.resolve(__dirname, '..');
+// Codebase root directory
+const CODEBASE_ROOT = path.resolve(__dirname, '..');
+
+// Default Projects folder inside the codebase: <codebase>/Projects
+const PROJECTS_ROOT = path.join(CODEBASE_ROOT, 'Projects');
+
+// Ensure Projects folder exists
+if (!fs.existsSync(PROJECTS_ROOT)) {
+  fs.mkdirSync(PROJECTS_ROOT, { recursive: true });
+}
+
+// Ensure at least one default starter project exists inside Projects/
+const defaultProjectFolder = path.join(PROJECTS_ROOT, 'My-First-Project');
+if (!fs.existsSync(defaultProjectFolder)) {
+  fs.mkdirSync(defaultProjectFolder, { recursive: true });
+  fs.writeFileSync(
+    path.join(defaultProjectFolder, 'README.md'),
+    `# My First Project\n\nWelcome to Grok Build Studio! Ask Grok to build features or create files here.\n`
+  );
+}
+
+// Set initial workspace to default project folder
+let currentWorkspace = defaultProjectFolder;
 
 const GROK_BIN = 'C:\\Users\\USER\\.grok\\bin\\grok.exe';
 
@@ -87,7 +107,7 @@ app.get('/api/models', (req, res) => {
   });
 });
 
-// REST API: List Projects / Local Folders
+// REST API: List Projects inside Projects/
 app.get('/api/projects', (req, res) => {
   try {
     const entries = fs.readdirSync(PROJECTS_ROOT, { withFileTypes: true });
@@ -105,7 +125,7 @@ app.get('/api/projects', (req, res) => {
   }
 });
 
-// REST API: Create New Local Project Folder
+// REST API: Create New Local Project Folder inside Projects/
 app.post('/api/projects/create', (req, res) => {
   const { folderName } = req.body;
   if (!folderName || !folderName.trim()) {
@@ -254,7 +274,6 @@ wss.on('connection', (ws) => {
         const { prompt, model, reasoningEffort, alwaysApprove, worktree, sessionResume } = data;
         
         const args = ['-p', prompt, '--output-format', 'streaming-json'];
-        // Only pass model if explicitly set and not default
         if (model && model !== 'grok-4.5') args.push('--model', model);
         if (reasoningEffort) args.push('--reasoning-effort', reasoningEffort);
         if (alwaysApprove) args.push('--always-approve');
