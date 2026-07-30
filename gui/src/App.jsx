@@ -4,7 +4,7 @@ import {
   Sparkles, CheckCircle2, AlertCircle, FileText, ChevronRight, 
   ChevronDown, Code, Zap, RefreshCw, Shield, Layers, Plus, 
   FolderPlus, FilePlus, Trash2, MessageSquare, Activity, Folder, Lightbulb,
-  Brain, Check, Loader2, DollarSign, Command, ExternalLink, UserCheck, LogOut, Copy
+  Brain, Check, Loader2, DollarSign, Command, ExternalLink, UserCheck, LogOut, Copy, AlertTriangle
 } from 'lucide-react';
 
 export default function App() {
@@ -33,6 +33,17 @@ export default function App() {
   const [newFileName, setNewFileName] = useState('');
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+
+  // Custom Dark Confirm / Alert Modal State (Replaces native browser popups)
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Confirm',
+    cancelText: 'Cancel',
+    isDanger: false,
+    onConfirm: () => {}
+  });
 
   // Auth State & Modal
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -72,6 +83,21 @@ export default function App() {
     };
   }, []);
 
+  const triggerConfirm = ({ title, message, confirmText = 'Confirm', isDanger = false, onConfirm }) => {
+    setConfirmModal({
+      isOpen: true,
+      title,
+      message,
+      confirmText,
+      cancelText: 'Cancel',
+      isDanger,
+      onConfirm: () => {
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        onConfirm();
+      }
+    });
+  };
+
   const fetchStatus = async () => {
     try {
       const res = await fetch('/api/status');
@@ -96,8 +122,14 @@ export default function App() {
         setAuthData(data);
         startAuthPolling();
       } else {
-        alert('Failed to start login: ' + (data.error || 'Unknown error'));
         setShowAuthModal(false);
+        triggerConfirm({
+          title: 'Login Error',
+          message: data.error || 'Failed to start device authentication.',
+          confirmText: 'OK',
+          isDanger: true,
+          onConfirm: () => {}
+        });
       }
     } catch (err) {
       console.error('Login error:', err);
@@ -124,14 +156,21 @@ export default function App() {
     }, 2000);
   };
 
-  const handleLogout = async () => {
-    if (!confirm('Are you sure you want to sign out from your X / xAI account?')) return;
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-      fetchStatus();
-    } catch (err) {
-      console.error('Logout error:', err);
-    }
+  const handleLogout = () => {
+    triggerConfirm({
+      title: 'Sign Out Confirmation',
+      message: 'Are you sure you want to sign out from your X / xAI account?',
+      confirmText: 'Sign Out',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await fetch('/api/auth/logout', { method: 'POST' });
+          fetchStatus();
+        } catch (err) {
+          console.error('Logout error:', err);
+        }
+      }
+    });
   };
 
   const copyUserCode = () => {
@@ -234,26 +273,33 @@ export default function App() {
     }
   };
 
-  const handleDeleteProject = async (projectPath, projectName) => {
-    if (!confirm(`Are you sure you want to delete project folder "${projectName}" from disk?`)) return;
-    try {
-      const res = await fetch('/api/projects/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectPath })
-      });
-      const data = await res.json();
-      if (data.success) {
-        fetchProjects();
-        if (data.activeWorkspace) {
-          setActiveWorkspace(data.activeWorkspace);
-          fetchFiles(data.activeWorkspace);
-          initWelcomeTurn(data.activeWorkspace);
+  const handleDeleteProject = (projectPath, projectName) => {
+    triggerConfirm({
+      title: 'Delete Project Folder',
+      message: `Are you sure you want to permanently delete project folder "${projectName}" from disk?`,
+      confirmText: 'Delete Project',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          const res = await fetch('/api/projects/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ projectPath })
+          });
+          const data = await res.json();
+          if (data.success) {
+            fetchProjects();
+            if (data.activeWorkspace) {
+              setActiveWorkspace(data.activeWorkspace);
+              fetchFiles(data.activeWorkspace);
+              initWelcomeTurn(data.activeWorkspace);
+            }
+          }
+        } catch (err) {
+          console.error('Failed to delete project:', err);
         }
       }
-    } catch (err) {
-      console.error('Failed to delete project:', err);
-    }
+    });
   };
 
   const handleCreateFile = async () => {
@@ -294,21 +340,28 @@ export default function App() {
     }
   };
 
-  const handleDeleteItem = async (relPath) => {
-    if (!confirm(`Are you sure you want to delete ${relPath}?`)) return;
-    try {
-      const res = await fetch('/api/files/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ relPath })
-      });
-      const data = await res.json();
-      if (data.success) {
-        fetchFiles(activeWorkspace);
+  const handleDeleteItem = (relPath) => {
+    triggerConfirm({
+      title: 'Delete File',
+      message: `Are you sure you want to delete "${relPath}"?`,
+      confirmText: 'Delete',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          const res = await fetch('/api/files/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ relPath })
+          });
+          const data = await res.json();
+          if (data.success) {
+            fetchFiles(activeWorkspace);
+          }
+        } catch (err) {
+          console.error('Failed to delete item:', err);
+        }
       }
-    } catch (err) {
-      console.error('Failed to delete item:', err);
-    }
+    });
   };
 
   const openFile = async (path) => {
@@ -554,7 +607,7 @@ export default function App() {
               <span className="hidden md:inline font-mono">Signed in</span>
               <button 
                 onClick={handleLogout}
-                className="hover:text-rose-400 p-0.5 ml-1 transition"
+                className="hover:text-rose-400 p-0.5 ml-1 transition cursor-pointer"
                 title="Sign out from X account"
               >
                 <LogOut className="w-3.5 h-3.5" />
@@ -1036,6 +1089,43 @@ export default function App() {
         </main>
 
       </div>
+
+      {/* CUSTOM REACT CONFIRM / ALERT MODAL (No browser popups!) */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-[#111726] border border-slate-700 rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-xl ${confirmModal.isDanger ? 'bg-rose-500/20 text-rose-400' : 'bg-cyan-500/20 text-cyan-400'}`}>
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <h3 className="font-bold text-base text-white">{confirmModal.title}</h3>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              {confirmModal.message}
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button 
+                onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-300 hover:bg-slate-800 transition cursor-pointer"
+              >
+                {confirmModal.cancelText}
+              </button>
+              <button 
+                onClick={confirmModal.onConfirm}
+                className={`px-4 py-1.5 font-bold rounded-xl text-xs transition cursor-pointer ${
+                  confirmModal.isDanger 
+                    ? 'bg-rose-500 hover:bg-rose-400 text-white shadow-lg shadow-rose-500/20' 
+                    : 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-500/20'
+                }`}
+              >
+                {confirmModal.confirmText}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL: X / xAI OAUTH DEVICE LOGIN */}
       {showAuthModal && (
