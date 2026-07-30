@@ -4,71 +4,52 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://media.x.ai/v1/website/spacexai-symbol-white-transparent-0c31957f.png">
     <source media="(prefers-color-scheme: light)" srcset="https://media.x.ai/v1/website/spacexai-symbol-black-transparent-6435cf42.png">
-    <img alt="Grok Build Studio" src="https://media.x.ai/v1/website/spacexai-symbol-black-transparent-6435cf42.png" width="96">
+    <img alt="Grok Build Web UI" src="https://media.x.ai/v1/website/spacexai-symbol-black-transparent-6435cf42.png" width="96">
   </picture>
   <br>
-  Grok Build Studio (<code>grok-build-studio</code>)
+  Grok Build Web UI
 </h1>
 
-**Grok Build Studio** is an ultra-modern Web GUI Workbench for SpaceXAI's **Grok Build** AI coding agent. It converts the terminal CLI into a full-featured multi-project IDE with live step-by-step reasoning, workspace file management, and real-time execution streaming.
+**Grok Build Web UI** is an ultra-modern Web GUI Workbench for SpaceXAI's **Grok Build** AI coding agent. It converts the terminal CLI into a full-featured multi-project IDE with live step-by-step reasoning, workspace file management, and real-time execution streaming.
 
-[![License](https.img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Grok Engine](https://img.shields.io/badge/grok--engine-v0.2.114-cyan.svg)](https://x.ai/cli)
 [![Model](https://img.shields.io/badge/default--model-grok--4.5-emerald.svg)](https://x.ai)
+[![Node Version](https://img.shields.io/badge/node--js-%3E%3D18.0-brightgreen.svg)](https://nodejs.org)
 
-[Features](#features) ·
-[Architecture](#architecture) ·
-[Quickstart](#quickstart) ·
-[Project Layout](#project-layout) ·
-[License](#license)
+[Features](#-key-features) ·
+[Architecture](#-architecture) ·
+[Quickstart](#-quickstart--installation) ·
+[Usage Guide](#-usage-guide) ·
+[Repository Layout](#-repository-layout) ·
+[License](#-license)
 
 </div>
 
 ---
 
-## 🌟 Recommended Repository Name
+## 🔥 Key Features
 
-> 💡 **Project Name**: `grok-build-studio`  
-> *Alternative names*: `grok-studio-gui` | `grok-build-web-ui`
-
----
-
-## ✨ Features
-
-- **📂 Antigravity Multi-Project Workbench**:
-  - Browse, switch, and manage multiple local project folders in one unified sidebar.
-  - Create new local project folders, files, and subfolders with 1 click.
-- **🧠 Live Step-by-Step AI Reasoning & Execution**:
-  - Real-time streaming of Grok's thought process (`grok-4.5`).
-  - Interactive step cards showing file modifications, shell command executions, and status indicators.
-- **⚙️ Dynamic Model & Engine Controls**:
-  - Dynamically discovers available models (`grok-4.5`, `grok-3`, etc.).
-  - Auto-approve permissions toggle (`--always-approve`).
-  - Isolated git worktree execution mode (`--worktree`).
-- **🎨 SpaceXAI Dark Aesthetics**:
-  - High-contrast obsidian slate theme (`#090c15`), cyan & emerald glow accents, and responsive layout.
-- **📄 Code & Diff Inspector**:
-  - View project code files directly within the GUI workbench.
+| Feature | Description |
+| :--- | :--- |
+| **📁 Multi-Project Workbench** | Browse, switch, and manage multiple local project folders in one unified sidebar. |
+| **🧠 Live Step-by-Step Reasoning** | Real-time token streaming of Grok's internal thought process (`grok-4.5`). |
+| **⚡ Real-time Step Execution Cards** | Live progress cards for file creations, refactors, and terminal command executions. |
+| **⚙️ Dynamic Model Selector** | Automatically discovers available Grok models (`grok-4.5`, `grok-3`, etc.). |
+| **🛡️ Auto-Approve Permissions** | One-click toggle to auto-approve tool executions (`--always-approve`). |
+| **🌿 Git Worktree Mode** | Execute prompts inside isolated git worktrees (`--worktree`). |
+| **🎨 SpaceXAI Dark Aesthetics** | High-contrast obsidian slate theme (`#090c15`) with cyan & emerald glow accents. |
+| **📄 Code & Diff Viewer** | Integrated file explorer and syntax-highlighted code inspector. |
 
 ---
 
 ## 🏗️ Architecture
 
-```
- ┌─────────────────────────────────────────────────────────────┐
- │                Grok Build Studio Web GUI                    │
- │               (React 18 + Vite + Tailwind v4)               │
- └──────────────────────────────┬──────────────────────────────┘
-                                │ WebSocket (WS) / HTTP REST
- ┌──────────────────────────────▼──────────────────────────────┐
- │                Node.js Backend Server Bridge                │
- │                 (gui/server.js - Express/WS)                │
- └──────────────────────────────┬──────────────────────────────┘
-                                │ Stdio / Streaming JSON
- ┌──────────────────────────────▼──────────────────────────────┐
- │             Grok Build Rust CLI Engine (grok.exe)            │
- │                   (SpaceXAI Agent Engine)                   │
- └─────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    A["Grok Build Web UI (React 18 + Vite + Tailwind v4)"] -->|WebSocket / REST API| B["Node.js Backend Server Bridge (gui/server.js)"]
+    B -->|Stdio / Streaming JSON-RPC| C["Grok Rust Agent Core (grok.exe)"]
+    C -->|Reads / Edits / Executes| D["Local Filesystem Workspaces"]
 ```
 
 ---
@@ -77,30 +58,39 @@
 
 ### Prerequisites
 
-1. Install **Grok CLI**:
-   ```powershell
-   irm https://x.ai/cli/install.ps1 | iex    # Windows PowerShell
-   # or macOS / Linux:
-   curl -fsSL https://x.ai/cli/install.sh | bash
-   ```
-2. Authenticate Grok:
+1. **Install Grok CLI**:
+   - **Windows (PowerShell)**:
+     ```powershell
+     irm https://x.ai/cli/install.ps1 | iex
+     ```
+   - **macOS / Linux**:
+     ```bash
+     curl -fsSL https://x.ai/cli/install.sh | bash
+     ```
+
+2. **Authenticate Grok**:
    ```bash
    grok login --device-auth
    ```
-3. Node.js `v18+` installed.
 
-### Setup & Run GUI Studio
+3. **Node.js**: Ensure Node.js `v18+` is installed.
+
+---
+
+### Setup & Run Web UI
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_GITHUB_USERNAME/grok-build-studio.git
-cd grok-build-studio/gui
+git clone https://github.com/himalayladha/grok-build-web-ui.git
+cd grok-build-web-ui/gui
 
-# Install dependencies & build
+# Install dependencies
 npm install
+
+# Build production bundle
 npm run build
 
-# Start the Grok Build Studio GUI server
+# Start the Web UI server
 npm start
 ```
 
@@ -108,16 +98,39 @@ Open your browser at **[http://localhost:3001](http://localhost:3001)**.
 
 ---
 
+## 💡 Usage Guide
+
+### 1. **Switching / Creating Projects**
+- Use the **Projects** sidebar on the left to switch between local project folders.
+- Click **`+`** (Create Folder) to create a brand new local project directory.
+- Click **`+ New Conversation`** to start a clean AI turn history.
+
+### 2. **Creating & Managing Files**
+- Click **`📄`** (New File) or **`📁`** (New Subfolder) to create files directly inside the active project folder.
+- Hover over any file to reveal the **🗑️ Delete** button.
+
+### 3. **Executing Agent Prompts**
+- Type your prompt in the prompt bar at the bottom and press <kbd>Ctrl</kbd> + <kbd>Enter</kbd>.
+- Watch Grok reason, modify files, and execute shell commands step-by-step in real-time.
+
+---
+
 ## 📁 Repository Layout
 
-| Path | Description |
-|------|-------------|
-| `gui/` | Web GUI application source code |
-| `gui/server.js` | Express & WebSocket backend bridge for `grok` CLI |
-| `gui/src/App.jsx` | React main studio layout with step-by-step execution stream |
-| `gui/src/index.css` | SpaceXAI high-contrast design system |
-| `crates/` | Core Rust source for `grok` agent engine |
-| `Cargo.toml` | Workspace dependencies and build targets |
+```
+grok-build-web-ui/
+├── gui/
+│   ├── src/
+│   │   ├── App.jsx           # Main Web UI Studio application & step stream
+│   │   ├── main.jsx          # React entry point
+│   │   └── index.css         # SpaceXAI high-contrast design system
+│   ├── server.js             # Express & WebSocket backend bridge for grok CLI
+│   ├── vite.config.js        # Vite bundler configuration
+│   └── package.json          # Node dependencies & scripts
+├── crates/                   # Core Rust source for grok agent engine
+├── Cargo.toml                # Workspace build manifest
+└── README.md                 # Project documentation
+```
 
 ---
 
