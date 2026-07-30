@@ -48,6 +48,82 @@ if (fs.existsSync(distPath)) {
 // Serve Projects static files for web preview
 app.use('/workspace-files', express.static(PROJECTS_ROOT));
 
+// Keep track of active auth process
+let activeAuthProcess = null;
+let currentAuthData = null;
+
+// REST API: Start Device Authentication via X / xAI
+app.post('/api/auth/start-login', (req, res) => {
+  if (activeAuthProcess) {
+    try { activeAuthProcess.kill(); } catch {}
+    activeAuthProcess = null;
+  }
+
+  currentAuthData = null;
+  const proc = spawn(GROK_BIN, ['login', '--device-code']);
+  activeAuthProcess = proc;
+
+  let fullOutput = '';
+  let responded = false;
+
+  proc.stdout.on('data', (chunk) => {
+    fullOutput += chunk.toString();
+    
+    // Extract OAuth URL and Device Code
+    const urlMatch = fullOutput.match(/https:\/\/accounts\.x\.ai\/oauth2\/device\?user_code=([A-Z0-9-]+)/);
+    const codeMatch = fullOutput.match(/Confirm this code in your browser:\s*\n*\s*([A-Z0-9-]+)/);
+
+    if (urlMatch && codeMatch && !responded) {
+      responded = true;
+      currentAuthData = {
+        authUrl: urlMatch[0],
+        userCode: codeMatch[1],
+        status: 'waiting'
+      };
+      res.json({ success: true, ...currentAuthData });
+    }
+  });
+
+  proc.stderr.on('data', (chunk) => {
+    fullOutput += chunk.toString();
+  });
+
+  proc.on('close', (code) => {
+    activeAuthProcess = null;
+    if (currentAuthData) {
+      currentAuthData.status = code === 0 ? 'authenticated' : 'failed';
+    }
+  });
+
+  // Timeout safety
+  setTimeout(() => {
+    if (!responded) {
+      responded = true;
+      res.status(500).json({ error: 'Timeout waiting for device login code. Output: ' + fullOutput });
+    }
+  }, 10000);
+});
+
+// REST API: Check Current Login Auth Progress
+app.get('/api/auth/check-status', (req, res) => {
+  exec(`"${GROK_BIN}" inspect`, { cwd: currentWorkspace }, (authErr, authStdout) => {
+    const isAuthenticated = !authErr && !authStdout.includes('Not signed in');
+    res.json({
+      authenticated: isAuthenticated,
+      info: authStdout || '',
+      authProgress: currentAuthData
+    });
+  });
+});
+
+// REST API: Logout from X / xAI
+app.post('/api/auth/logout', (req, res) => {
+  exec(`"${GROK_BIN}" logout`, () => {
+    currentAuthData = null;
+    res.json({ success: true });
+  });
+});
+
 // REST API: Get System & Grok Status
 app.get('/api/status', (req, res) => {
   exec(`"${GROK_BIN}" --version`, (err, stdout, stderr) => {
@@ -56,12 +132,13 @@ app.get('/api/status', (req, res) => {
     }
     const version = stdout.trim();
     exec(`"${GROK_BIN}" inspect`, { cwd: currentWorkspace }, (authErr, authStdout) => {
+      const isAuthenticated = !authErr && !authStdout.includes('Not signed in');
       res.json({
         installed: true,
         version,
         workspace: currentWorkspace,
         projectsRoot: PROJECTS_ROOT,
-        authenticated: !authErr && !authStdout.includes('Not signed in'),
+        authenticated: isAuthenticated,
         info: authStdout || ''
       });
     });

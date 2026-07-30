@@ -4,12 +4,12 @@ import {
   Sparkles, CheckCircle2, AlertCircle, FileText, ChevronRight, 
   ChevronDown, Code, Zap, RefreshCw, Shield, Layers, Plus, 
   FolderPlus, FilePlus, Trash2, MessageSquare, Activity, Folder, Lightbulb,
-  Brain, Check, Loader2, DollarSign, Command, ExternalLink
+  Brain, Check, Loader2, DollarSign, Command, ExternalLink, UserCheck, LogOut, Copy
 } from 'lucide-react';
 
 export default function App() {
   // System & Workspace State
-  const [status, setStatus] = useState({ installed: false, version: '', workspace: '', authenticated: false });
+  const [status, setStatus] = useState({ installed: false, version: '', workspace: '', authenticated: false, info: '' });
   const [projects, setProjects] = useState([]);
   const [activeWorkspace, setActiveWorkspace] = useState('');
   const [fileTree, setFileTree] = useState([]);
@@ -34,6 +34,12 @@ export default function App() {
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
 
+  // Auth State & Modal
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authData, setAuthData] = useState(null);
+  const [isStartingAuth, setIsStartingAuth] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
+
   // Agent Settings
   const [reasoningEffort, setReasoningEffort] = useState('high');
   const [alwaysApprove, setAlwaysApprove] = useState(true);
@@ -48,6 +54,7 @@ export default function App() {
 
   const wsRef = useRef(null);
   const chatBottomRef = useRef(null);
+  const authPollRef = useRef(null);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -61,6 +68,7 @@ export default function App() {
 
     return () => {
       wsRef.current?.close();
+      if (authPollRef.current) clearInterval(authPollRef.current);
     };
   }, []);
 
@@ -75,6 +83,62 @@ export default function App() {
       }
     } catch (err) {
       console.error('Failed to fetch status:', err);
+    }
+  };
+
+  const handleStartLogin = async () => {
+    setIsStartingAuth(true);
+    setShowAuthModal(true);
+    try {
+      const res = await fetch('/api/auth/start-login', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setAuthData(data);
+        startAuthPolling();
+      } else {
+        alert('Failed to start login: ' + (data.error || 'Unknown error'));
+        setShowAuthModal(false);
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      setShowAuthModal(false);
+    } finally {
+      setIsStartingAuth(false);
+    }
+  };
+
+  const startAuthPolling = () => {
+    if (authPollRef.current) clearInterval(authPollRef.current);
+    authPollRef.current = setInterval(async () => {
+      try {
+        const res = await fetch('/api/auth/check-status');
+        const data = await res.json();
+        if (data.authenticated) {
+          clearInterval(authPollRef.current);
+          setShowAuthModal(false);
+          fetchStatus();
+        }
+      } catch (err) {
+        console.error('Auth polling error:', err);
+      }
+    }, 2000);
+  };
+
+  const handleLogout = async () => {
+    if (!confirm('Are you sure you want to sign out from your X / xAI account?')) return;
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      fetchStatus();
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+  };
+
+  const copyUserCode = () => {
+    if (authData?.userCode) {
+      navigator.clipboard.writeText(authData.userCode);
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2000);
     }
   };
 
@@ -259,7 +323,6 @@ export default function App() {
     }
   };
 
-  // Run Project Folder
   const handleRunProject = (projectPath) => {
     const targetPath = projectPath || activeWorkspace;
     const projName = targetPath.split('\\').pop() || targetPath.split('/').pop() || 'Project';
@@ -483,7 +546,29 @@ export default function App() {
         </div>
 
         {/* Controls */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {/* X / xAI Authentication Button */}
+          {status.authenticated ? (
+            <div className="flex items-center gap-2 bg-[#121927] border border-emerald-500/40 rounded-lg px-2.5 py-1 text-xs text-emerald-300 font-medium">
+              <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden md:inline font-mono">Signed in</span>
+              <button 
+                onClick={handleLogout}
+                className="hover:text-rose-400 p-0.5 ml-1 transition"
+                title="Sign out from X account"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button 
+              onClick={handleStartLogin}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-slate-800 to-black hover:from-slate-700 hover:to-slate-900 border border-slate-700 text-white rounded-lg text-xs font-bold shadow-lg transition cursor-pointer"
+            >
+              <span className="font-extrabold text-sm">𝕏</span> Sign in with X
+            </button>
+          )}
+
           <div className="flex items-center gap-2 bg-[#121927] border border-slate-700/80 rounded-lg px-2.5 py-1 text-xs">
             <Cpu className="w-3.5 h-3.5 text-cyan-400" />
             <select 
@@ -724,6 +809,24 @@ export default function App() {
                           </div>
                         </div>
 
+                        {!status.authenticated && (
+                          <div className="bg-gradient-to-r from-slate-900 to-black border border-slate-700 rounded-xl p-4 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <span className="text-2xl font-extrabold text-white">𝕏</span>
+                              <div>
+                                <h4 className="font-bold text-white text-xs">Sign in with X / xAI Account</h4>
+                                <p className="text-[11px] text-slate-400">Authenticate once to run prompts with Grok 4.5</p>
+                              </div>
+                            </div>
+                            <button 
+                              onClick={handleStartLogin}
+                              className="px-3.5 py-1.5 bg-white text-black hover:bg-slate-200 font-bold rounded-lg text-xs transition cursor-pointer"
+                            >
+                              Sign in with X
+                            </button>
+                          </div>
+                        )}
+
                         <p className="text-xs text-slate-200 leading-relaxed">
                           This conversation is isolated to <strong className="text-cyan-300">{turn.projectName}</strong>. Grok will create files, execute commands, and write code step-by-step directly in this local directory. Click <strong className="text-emerald-400">Run Project</strong> above anytime to launch your app live!
                         </p>
@@ -933,6 +1036,83 @@ export default function App() {
         </main>
 
       </div>
+
+      {/* MODAL: X / xAI OAUTH DEVICE LOGIN */}
+      {showAuthModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-[#111726] border border-cyan-500/40 rounded-2xl p-6 w-full max-w-lg space-y-6 shadow-2xl">
+            
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-black border border-slate-700 flex items-center justify-center text-xl font-extrabold text-white">
+                  𝕏
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-white">Sign in with X / xAI Account</h3>
+                  <p className="text-xs text-slate-400">Authenticate your Grok Build engine</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowAuthModal(false)}
+                className="text-slate-400 hover:text-white transition text-xs font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {isStartingAuth || !authData ? (
+              <div className="py-8 flex flex-col items-center justify-center space-y-3">
+                <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+                <p className="text-xs text-slate-300 font-mono">Generating X OAuth device code...</p>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                <div className="bg-[#090c15] border border-slate-800 rounded-xl p-4 space-y-3 text-center">
+                  <span className="text-xs text-slate-400 font-mono uppercase tracking-wider">Device Verification Code:</span>
+                  <div className="flex items-center justify-center gap-3">
+                    <span className="text-3xl font-mono font-extrabold text-cyan-400 tracking-widest bg-slate-900 px-4 py-2 rounded-lg border border-cyan-500/30 shadow-inner">
+                      {authData.userCode}
+                    </span>
+                    <button 
+                      onClick={copyUserCode}
+                      className="p-2.5 bg-[#172033] hover:bg-[#1f2c47] text-slate-200 border border-slate-700 rounded-lg transition"
+                      title="Copy User Code"
+                    >
+                      {codeCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-cyan-400" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <a 
+                    href={authData.authUrl} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white font-extrabold rounded-xl text-sm shadow-lg shadow-cyan-500/20 transition cursor-pointer"
+                  >
+                    Open X / xAI Login Page <ExternalLink className="w-4 h-4" />
+                  </a>
+
+                  <div className="flex items-center justify-center gap-2 text-xs text-slate-400 font-mono py-1">
+                    <Loader2 className="w-3.5 h-3.5 text-cyan-400 animate-spin" />
+                    <span>Waiting for authorization from X browser tab...</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="pt-2 border-t border-slate-800 flex justify-end">
+              <button 
+                onClick={() => setShowAuthModal(false)}
+                className="px-4 py-1.5 rounded-lg text-xs text-slate-300 hover:bg-slate-800 transition font-semibold"
+              >
+                Cancel
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* MODAL: CREATE NEW PROJECT FOLDER */}
       {showNewProjectModal && (
