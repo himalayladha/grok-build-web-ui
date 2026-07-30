@@ -18,8 +18,8 @@
 [![Node Version](https://img.shields.io/badge/node--js-%3E%3D18.0-brightgreen.svg)](https://nodejs.org)
 
 [Features](#-key-features) ·
+[1-Click Quickstart](#-1-click-instant-installation) ·
 [Architecture](#-architecture) ·
-[Quickstart](#-quickstart--installation) ·
 [Usage Guide](#-usage-guide) ·
 [Repository Layout](#-repository-layout) ·
 [License](#-license)
@@ -28,18 +28,40 @@
 
 ---
 
+## ⚡ 1-Click Instant Installation
+
+You can install and run **Grok Build Web UI** directly in **1 command** without manual configuration:
+
+### 🚀 Standard Installation (`npm start`)
+
+```bash
+git clone https://github.com/himalayladha/grok-build-web-ui.git
+cd grok-build-web-ui
+npm start
+```
+> `npm start` automatically installs dependencies, builds the Web UI, and launches the server at **[http://localhost:3001](http://localhost:3001)**.
+
+---
+
+### 🖥️ 1-Click Launchers
+
+- **Windows**: Double-click **`start.bat`**
+- **macOS / Linux**: Run **`./start.sh`**
+
+---
+
 ## 🔥 Key Features
 
 | Feature | Description |
 | :--- | :--- |
 | **📁 Multi-Project Workbench** | Browse, switch, and manage multiple local project folders in one unified sidebar. |
+| **▶️ 1-Click Project Runner** | Auto-detects and runs web apps (`index.html`), Node servers, Python scripts, or Rust apps. |
 | **🧠 Live Step-by-Step Reasoning** | Real-time token streaming of Grok's internal thought process (`grok-4.5`). |
 | **⚡ Real-time Step Execution Cards** | Live progress cards for file creations, refactors, and terminal command executions. |
 | **⚙️ Dynamic Model Selector** | Automatically discovers available Grok models (`grok-4.5`, `grok-3`, etc.). |
 | **🛡️ Auto-Approve Permissions** | One-click toggle to auto-approve tool executions (`--always-approve`). |
-| **🌿 Git Worktree Mode** | Execute prompts inside isolated git worktrees (`--worktree`). |
 | **🎨 SpaceXAI Dark Aesthetics** | High-contrast obsidian slate theme (`#090c15`) with cyan & emerald glow accents. |
-| **📄 Code & Diff Viewer** | Integrated file explorer and syntax-highlighted code inspector. |
+| **🗑️ Project & File Management** | Create local projects, files, subfolders, or delete project folders directly from disk. |
 
 ---
 
@@ -49,52 +71,8 @@
 graph TD
     A["Grok Build Web UI (React 18 + Vite + Tailwind v4)"] -->|WebSocket / REST API| B["Node.js Backend Server Bridge (gui/server.js)"]
     B -->|Stdio / Streaming JSON-RPC| C["Grok Rust Agent Core (grok.exe)"]
-    C -->|Reads / Edits / Executes| D["Local Filesystem Workspaces"]
+    C -->|Reads / Edits / Executes| D["Local Projects Directory (Projects/)"]
 ```
-
----
-
-## 🚀 Quickstart & Installation
-
-### Prerequisites
-
-1. **Install Grok CLI**:
-   - **Windows (PowerShell)**:
-     ```powershell
-     irm https://x.ai/cli/install.ps1 | iex
-     ```
-   - **macOS / Linux**:
-     ```bash
-     curl -fsSL https://x.ai/cli/install.sh | bash
-     ```
-
-2. **Authenticate Grok**:
-   ```bash
-   grok login --device-auth
-   ```
-
-3. **Node.js**: Ensure Node.js `v18+` is installed.
-
----
-
-### Setup & Run Web UI
-
-```bash
-# Clone the repository
-git clone https://github.com/himalayladha/grok-build-web-ui.git
-cd grok-build-web-ui/gui
-
-# Install dependencies
-npm install
-
-# Build production bundle
-npm run build
-
-# Start the Web UI server
-npm start
-```
-
-Open your browser at **[http://localhost:3001](http://localhost:3001)**.
 
 ---
 
@@ -102,15 +80,15 @@ Open your browser at **[http://localhost:3001](http://localhost:3001)**.
 
 ### 1. **Switching / Creating Projects**
 - Use the **Projects** sidebar on the left to switch between local project folders.
-- Click **`+`** (Create Folder) to create a brand new local project directory.
-- Click **`+ New Conversation`** to start a clean AI turn history.
+- Click **`+`** (Create Folder) to create a brand new local project directory under `Projects/`.
+- Click **`🗑️`** to delete any project folder from disk.
 
-### 2. **Creating & Managing Files**
-- Click **`📄`** (New File) or **`📁`** (New Subfolder) to create files directly inside the active project folder.
-- Hover over any file to reveal the **🗑️ Delete** button.
+### 2. **Running Projects**
+- Click **`▶️`** on any project in the Projects sidebar to launch it live.
+- Web applications (`index.html`) will automatically open in a **new browser tab**.
 
 ### 3. **Executing Agent Prompts**
-- Type your prompt in the prompt bar at the bottom and press <kbd>Ctrl</kbd> + <kbd>Enter</kbd>.
+- Type your prompt in the prompt bar at the bottom and press <kbd>Enter</kbd> (or <kbd>Shift</kbd> + <kbd>Enter</kbd> for a new line).
 - Watch Grok reason, modify files, and execute shell commands step-by-step in real-time.
 
 ---
@@ -119,16 +97,17 @@ Open your browser at **[http://localhost:3001](http://localhost:3001)**.
 
 ```
 grok-build-web-ui/
+├── package.json              # Top-level 1-command installer & launcher
+├── start.bat                 # 1-click Windows launcher
+├── start.sh                  # 1-click macOS / Linux launcher
+├── Projects/                 # Auto-created local projects directory
 ├── gui/
 │   ├── src/
 │   │   ├── App.jsx           # Main Web UI Studio application & step stream
-│   │   ├── main.jsx          # React entry point
 │   │   └── index.css         # SpaceXAI high-contrast design system
 │   ├── server.js             # Express & WebSocket backend bridge for grok CLI
-│   ├── vite.config.js        # Vite bundler configuration
 │   └── package.json          # Node dependencies & scripts
 ├── crates/                   # Core Rust source for grok agent engine
-├── Cargo.toml                # Workspace build manifest
 └── README.md                 # Project documentation
 ```
 

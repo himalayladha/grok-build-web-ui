@@ -1,0 +1,22 @@
+{
+  "name": "grok-build-web-ui",
+  "version": "1.0.0",
+  "description": "Ultra-modern Web GUI Workbench for SpaceXAI Grok Build Coding Agent",
+  "main": "gui/server.js",
+  "scripts": {
+    "postinstall": "npm install --prefix gui",
+    "build": "npm run build --prefix gui",
+    "start": "npm run build --prefix gui && node gui/server.js",
+    "dev": "npm run dev --prefix gui"
+  },
+  "keywords": [
+    "grok",
+    "xai",
+    "ai-agent",
+    "coding-agent",
+    "web-ui",
+    "antigravity"
+  ],
+  "author": "himalayladha",
+  "license": "Apache-2.0"
+}
