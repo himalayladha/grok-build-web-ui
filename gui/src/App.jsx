@@ -4,7 +4,7 @@ import {
   Sparkles, CheckCircle2, AlertCircle, FileText, ChevronRight, 
   ChevronDown, Code, Zap, RefreshCw, Shield, Layers, Plus, 
   FolderPlus, FilePlus, Trash2, MessageSquare, Activity, Folder, Lightbulb,
-  Brain, Check, Loader2, DollarSign, Command
+  Brain, Check, Loader2, DollarSign, Command, ExternalLink
 } from 'lucide-react';
 
 export default function App() {
@@ -306,7 +306,10 @@ export default function App() {
   };
 
   const handleServerEvent = (data) => {
-    if (data.type === 'status') {
+    if (data.type === 'open_url') {
+      window.open(data.url, '_blank');
+      appendLog(`[BROWSER TAB] Opened ${data.url}`);
+    } else if (data.type === 'status') {
       appendLog(`[STATUS] ${data.message}`);
     } else if (data.type === 'raw_output' || data.type === 'raw_error') {
       appendLog(data.text);
@@ -624,7 +627,7 @@ export default function App() {
                                 <button 
                                   onClick={(e) => { e.stopPropagation(); handleRunFile(file.path); }}
                                   className="p-1 hover:bg-cyan-500/20 text-emerald-400 hover:text-emerald-300 rounded transition"
-                                  title="▶️ Run File Directly"
+                                  title="▶️ Run / Preview File in New Tab"
                                 >
                                   <Play className="w-3 h-3 fill-current" />
                                 </button>
@@ -893,7 +896,7 @@ export default function App() {
                     onClick={() => handleRunFile(selectedFile)}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-bold transition cursor-pointer"
                   >
-                    <Play className="w-3.5 h-3.5 fill-current" /> Run File Directly
+                    <ExternalLink className="w-3.5 h-3.5" /> Run / Preview in New Tab
                   </button>
                 )}
               </div>

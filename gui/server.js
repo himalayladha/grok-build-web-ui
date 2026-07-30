@@ -24,7 +24,7 @@ if (!fs.existsSync(defaultProjectFolder)) {
   fs.mkdirSync(defaultProjectFolder, { recursive: true });
   fs.writeFileSync(
     path.join(defaultProjectFolder, 'index.html'),
-    `<!DOCTYPE html>\n<html>\n<head><title>My First Project</title></head>\n<body style="background:#090c15;color:#fff;font-family:sans-serif;padding:40px;">\n  <h1>Hello from Grok Build Studio! 🚀</h1>\n</body>\n</html>\n`
+    `<!DOCTYPE html>\n<html>\n<head><title>My First Project</title></head>\n<body style="background:#090c15;color:#fff;font-family:sans-serif;padding:40px;">\n  <h1>Hello from Grok Build Studio! 🚀</h1>\n  <p>Your web app is running live.</p>\n</body>\n</html>\n`
   );
   fs.writeFileSync(
     path.join(defaultProjectFolder, 'index.js'),
@@ -44,6 +44,17 @@ const distPath = path.join(__dirname, 'dist');
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
 }
+
+// Serve Projects static files for web preview
+app.use('/workspace-files', express.static(PROJECTS_ROOT));
+
+// REST API: Get Preview URL for HTML files
+app.get('/api/preview-url', (req, res) => {
+  const relPath = req.query.path || 'index.html';
+  const projFolder = path.basename(currentWorkspace);
+  const previewUrl = `http://localhost:${PORT}/workspace-files/${projFolder}/${relPath}`;
+  res.json({ url: previewUrl, projFolder, relPath });
+});
 
 // REST API: Get System & Grok Status
 app.get('/api/status', (req, res) => {
@@ -306,21 +317,17 @@ wss.on('connection', (ws) => {
         const absPath = path.resolve(currentWorkspace, filePath);
         const ext = path.extname(filePath).toLowerCase();
 
-        // 1. HTML Files -> Launch in default Web Browser
+        // HTML Files -> Return preview URL for opening in a new tab
         if (ext === '.html' || ext === '.htm') {
-          ws.send(JSON.stringify({ type: 'status', message: `🌐 Opening HTML page in browser: ${filePath}` }));
-          exec(`cmd /c start "" "${absPath}"`, { cwd: currentWorkspace }, (err) => {
-            if (err) {
-              ws.send(JSON.stringify({ type: 'raw_error', text: `Failed to open HTML file: ${err.message}` }));
-            } else {
-              ws.send(JSON.stringify({ type: 'raw_output', text: `✓ Opened ${filePath} in default web browser.` }));
-            }
-            ws.send(JSON.stringify({ type: 'process_exit', code: 0 }));
-          });
+          const projFolder = path.basename(currentWorkspace);
+          const url = `http://localhost:${PORT}/workspace-files/${projFolder}/${filePath}`;
+          ws.send(JSON.stringify({ type: 'open_url', url, filePath }));
+          ws.send(JSON.stringify({ type: 'raw_output', text: `🌐 Opened [${filePath}] in new browser tab: ${url}` }));
+          ws.send(JSON.stringify({ type: 'process_exit', code: 0 }));
           return;
         }
 
-        // 2. JavaScript
+        // Executable Code Files
         let cmd = '';
         let args = [];
 
