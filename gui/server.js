@@ -4,15 +4,16 @@ import cors from 'cors';
 import { spawn, exec } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Codebase root directory
+// Codebase root directory (Dynamic)
 const CODEBASE_ROOT = path.resolve(__dirname, '..');
 
-// Default Projects folder inside codebase
+// Default Projects folder inside codebase (Dynamic)
 const PROJECTS_ROOT = path.join(CODEBASE_ROOT, 'Projects');
 
 if (!fs.existsSync(PROJECTS_ROOT)) {
@@ -33,7 +34,24 @@ if (!fs.existsSync(defaultProjectFolder)) {
 }
 
 let currentWorkspace = defaultProjectFolder;
-const GROK_BIN = 'C:\\Users\\USER\\.grok\\bin\\grok.exe';
+
+// Dynamically detect Grok binary path across Windows, macOS, Linux, and custom user homes
+function getGrokBinaryPath() {
+  if (process.env.GROK_BIN) return process.env.GROK_BIN;
+
+  const isWin = process.platform === 'win32';
+  const home = os.homedir();
+  const localBin = path.join(home, '.grok', 'bin', isWin ? 'grok.exe' : 'grok');
+
+  if (fs.existsSync(localBin)) {
+    return localBin;
+  }
+
+  // Fallback to binary available in system PATH
+  return isWin ? 'grok.exe' : 'grok';
+}
+
+const GROK_BIN = getGrokBinaryPath();
 
 const app = express();
 app.use(cors());
@@ -69,7 +87,6 @@ app.post('/api/auth/start-login', (req, res) => {
   proc.stdout.on('data', (chunk) => {
     fullOutput += chunk.toString();
     
-    // Extract OAuth URL and Device Code
     const urlMatch = fullOutput.match(/https:\/\/accounts\.x\.ai\/oauth2\/device\?user_code=([A-Z0-9-]+)/);
     const codeMatch = fullOutput.match(/Confirm this code in your browser:\s*\n*\s*([A-Z0-9-]+)/);
 
@@ -95,7 +112,6 @@ app.post('/api/auth/start-login', (req, res) => {
     }
   });
 
-  // Timeout safety
   setTimeout(() => {
     if (!responded) {
       responded = true;
