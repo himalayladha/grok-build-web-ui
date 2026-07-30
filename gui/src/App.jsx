@@ -716,7 +716,7 @@ export default function App() {
                                     <Command className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                                     <span>{step.title}</span>
                                   </div>
-                                  <span className="flex items-center gap-1 text-[10px] text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/40 font-bold">
+                                  <span className="flex items-center gap-1 text-[10px] text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-500/30 font-bold">
                                     <Check className="w-3 h-3" /> Executed
                                   </span>
                                 </div>
@@ -766,12 +766,13 @@ export default function App() {
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                        // Enter runs prompt, Shift + Enter inserts new line
+                        if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
                           handleRunPrompt();
                         }
                       }}
-                      placeholder={`Ask Grok to build features or edit files in ${activeProjectName}... (Ctrl + Enter)`}
+                      placeholder={`Ask Grok to build features or edit files in ${activeProjectName}... (Enter to send, Shift+Enter for new line)`}
                       rows={2}
                       className="w-full bg-[#090c15] border border-slate-700/80 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-400 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition resize-none pr-28"
                     />
@@ -795,6 +796,12 @@ export default function App() {
                       )}
                     </div>
                   </div>
+                  
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 px-1 font-mono">
+                    <span>Press <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700 font-bold">Enter</kbd> to send prompt</span>
+                    <span>Press <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700 font-bold">Shift + Enter</kbd> for new line</span>
+                  </div>
+
                 </div>
               </div>
 
