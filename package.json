@@ -5,8 +5,9 @@
   "main": "gui/server.js",
   "scripts": {
     "postinstall": "npm install --prefix gui",
-    "build": "npm run build --prefix gui",
-    "start": "npm run build --prefix gui && node gui/server.js",
+    "prestart": "npm install --prefix gui",
+    "start": "npm install --prefix gui && npm run build --prefix gui && node gui/server.js",
+    "build": "npm install --prefix gui && npm run build --prefix gui",
     "dev": "npm run dev --prefix gui"
   },
   "keywords": [
