@@ -12,27 +12,27 @@ const __dirname = path.dirname(__filename);
 // Codebase root directory
 const CODEBASE_ROOT = path.resolve(__dirname, '..');
 
-// Default Projects folder inside the codebase: <codebase>/Projects
+// Default Projects folder inside codebase
 const PROJECTS_ROOT = path.join(CODEBASE_ROOT, 'Projects');
 
-// Ensure Projects folder exists
 if (!fs.existsSync(PROJECTS_ROOT)) {
   fs.mkdirSync(PROJECTS_ROOT, { recursive: true });
 }
 
-// Ensure at least one default starter project exists inside Projects/
 const defaultProjectFolder = path.join(PROJECTS_ROOT, 'My-First-Project');
 if (!fs.existsSync(defaultProjectFolder)) {
   fs.mkdirSync(defaultProjectFolder, { recursive: true });
   fs.writeFileSync(
+    path.join(defaultProjectFolder, 'index.js'),
+    `console.log("Hello from Grok Build Studio!");\n`
+  );
+  fs.writeFileSync(
     path.join(defaultProjectFolder, 'README.md'),
-    `# My First Project\n\nWelcome to Grok Build Studio! Ask Grok to build features or create files here.\n`
+    `# My First Project\n\nWelcome to Grok Build Studio! Click ▶️ to run files.\n`
   );
 }
 
-// Set initial workspace to default project folder
 let currentWorkspace = defaultProjectFolder;
-
 const GROK_BIN = 'C:\\Users\\USER\\.grok\\bin\\grok.exe';
 
 const app = express();
@@ -65,14 +65,12 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// REST API: Get Available Models dynamically from `grok models`
+// REST API: Get Available Models
 app.get('/api/models', (req, res) => {
   exec(`"${GROK_BIN}" models`, (err, stdout) => {
     if (err || !stdout) {
       return res.json({
-        models: [
-          { id: 'grok-4.5', name: 'Grok 4.5 (Default)' }
-        ]
+        models: [{ id: 'grok-4.5', name: 'Grok 4.5 (Default)' }]
       });
     }
 
@@ -125,7 +123,7 @@ app.get('/api/projects', (req, res) => {
   }
 });
 
-// REST API: Create New Local Project Folder inside Projects/
+// REST API: Create New Project Folder
 app.post('/api/projects/create', (req, res) => {
   const { folderName } = req.body;
   if (!folderName || !folderName.trim()) {
@@ -139,8 +137,8 @@ app.post('/api/projects/create', (req, res) => {
     if (!fs.existsSync(newFolderPath)) {
       fs.mkdirSync(newFolderPath, { recursive: true });
       fs.writeFileSync(
-        path.join(newFolderPath, 'README.md'),
-        `# ${folderName}\n\nCreated via Grok Build Studio.\n`
+        path.join(newFolderPath, 'index.js'),
+        `console.log("Welcome to ${folderName}!");\n`
       );
     }
     currentWorkspace = newFolderPath;
@@ -259,7 +257,7 @@ const server = app.listen(PORT, () => {
   console.log(`Grok Build GUI Backend running on http://localhost:${PORT}`);
 });
 
-// WebSocket Server for Agent Streaming
+// WebSocket Server for Agent Streaming & File Execution
 const wss = new WebSocketServer({ server, path: '/ws' });
 
 wss.on('connection', (ws) => {
@@ -270,6 +268,67 @@ wss.on('connection', (ws) => {
     try {
       const data = JSON.parse(message.toString());
       
+      // Action: Run Code File Directly
+      if (data.action === 'run_file') {
+        const { filePath } = data;
+        const absPath = path.resolve(currentWorkspace, filePath);
+        const ext = path.extname(filePath).toLowerCase();
+
+        let cmd = '';
+        let args = [];
+
+        if (ext === '.js' || ext === '.mjs' || ext === '.cjs') {
+          cmd = 'node';
+          args = [absPath];
+        } else if (ext === '.py') {
+          cmd = 'python';
+          args = [absPath];
+        } else if (ext === '.sh') {
+          cmd = 'bash';
+          args = [absPath];
+        } else if (ext === '.bat' || ext === '.cmd') {
+          cmd = 'cmd.exe';
+          args = ['/c', absPath];
+        } else if (ext === '.ps1') {
+          cmd = 'powershell';
+          args = ['-File', absPath];
+        } else if (ext === '.json' && path.basename(filePath) === 'package.json') {
+          cmd = 'npm';
+          args = ['start'];
+        } else if (ext === '.rs') {
+          cmd = 'cargo';
+          args = ['run'];
+        } else {
+          // Default fallback or text file display
+          ws.send(JSON.stringify({ type: 'status', message: `Executing file: ${filePath}` }));
+          cmd = 'node';
+          args = [absPath];
+        }
+
+        ws.send(JSON.stringify({ type: 'status', message: `▶️ Running file [${cmd} ${args.join(' ')}] in ${path.basename(currentWorkspace)}` }));
+
+        activeProcess = spawn(cmd, args, { cwd: currentWorkspace, shell: true });
+
+        activeProcess.stdout.on('data', (chunk) => {
+          ws.send(JSON.stringify({ type: 'raw_output', text: chunk.toString() }));
+        });
+
+        activeProcess.stderr.on('data', (chunk) => {
+          ws.send(JSON.stringify({ type: 'raw_error', text: chunk.toString() }));
+        });
+
+        activeProcess.on('close', (code) => {
+          ws.send(JSON.stringify({ type: 'process_exit', code }));
+          activeProcess = null;
+        });
+
+        activeProcess.on('error', (err) => {
+          ws.send(JSON.stringify({ type: 'error', message: err.message }));
+          activeProcess = null;
+        });
+      }
+
+      // Action: Run Grok Agent Prompt
       if (data.action === 'run_prompt') {
         const { prompt, model, reasoningEffort, alwaysApprove, worktree, sessionResume } = data;
         
@@ -314,7 +373,7 @@ wss.on('connection', (ws) => {
 
       if (data.action === 'cancel_prompt' && activeProcess) {
         activeProcess.kill('SIGTERM');
-        ws.send(JSON.stringify({ type: 'status', message: 'Agent execution cancelled.' }));
+        ws.send(JSON.stringify({ type: 'status', message: 'Execution cancelled.' }));
       }
     } catch (err) {
       ws.send(JSON.stringify({ type: 'error', message: 'Invalid WebSocket payload: ' + err.message }));

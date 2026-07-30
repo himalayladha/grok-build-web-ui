@@ -237,6 +237,30 @@ export default function App() {
     }
   };
 
+  // Run Code File Directly
+  const handleRunFile = (filePath) => {
+    if (!filePath || isExecuting) return;
+
+    const runTurn = {
+      id: Date.now().toString(),
+      role: 'assistant',
+      content: `▶️ **Running File**: \`${filePath}\``,
+      isStreaming: true,
+      timestamp: new Date().toLocaleTimeString()
+    };
+
+    setTurns(prev => [...prev, runTurn]);
+    setIsExecuting(true);
+    setActiveTab('chat');
+
+    if (wsRef.current && wsConnected) {
+      wsRef.current.send(JSON.stringify({
+        action: 'run_file',
+        filePath
+      }));
+    }
+  };
+
   const connectWebSocket = () => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws`;
@@ -265,6 +289,16 @@ export default function App() {
       appendLog(`[STATUS] ${data.message}`);
     } else if (data.type === 'raw_output' || data.type === 'raw_error') {
       appendLog(data.text);
+      setTurns(prev => {
+        const lastTurn = prev[prev.length - 1];
+        if (lastTurn && lastTurn.role === 'assistant' && lastTurn.isStreaming) {
+          return [
+            ...prev.slice(0, -1),
+            { ...lastTurn, content: lastTurn.content + '\n' + data.text }
+          ];
+        }
+        return prev;
+      });
     } else if (data.type === 'grok_event') {
       const ev = data.event;
       if (ev.type === 'thought') {
@@ -551,13 +585,25 @@ export default function App() {
                               )}
                               <span className="truncate">{file.name}</span>
                             </div>
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); handleDeleteItem(file.path); }}
-                              className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-400 hover:text-rose-400 transition"
-                              title="Delete File"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
+
+                            <div className="flex items-center gap-1">
+                              {!file.isDirectory && (
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); handleRunFile(file.path); }}
+                                  className="p-1 hover:bg-cyan-500/20 text-emerald-400 hover:text-emerald-300 rounded transition"
+                                  title="▶️ Run File Directly"
+                                >
+                                  <Play className="w-3 h-3 fill-current" />
+                                </button>
+                              )}
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); handleDeleteItem(file.path); }}
+                                className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-400 hover:text-rose-400 transition"
+                                title="Delete File"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
                           </div>
                         ))
                       )}
@@ -743,11 +789,6 @@ export default function App() {
                               <span>•</span>
                               <span>Reasoning: <strong className="text-indigo-300">{turn.usage.reasoning_tokens?.toLocaleString()}</strong></span>
                             </div>
-                            {turn.costUSD && (
-                              <div className="flex items-center gap-1 text-emerald-300 font-bold bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30">
-                                <DollarSign className="w-3 h-3" /> ${Number(turn.costUSD).toFixed(4)}
-                              </div>
-                            )}
                           </div>
                         )}
 
@@ -766,7 +807,6 @@ export default function App() {
                       value={prompt}
                       onChange={(e) => setPrompt(e.target.value)}
                       onKeyDown={(e) => {
-                        // Enter runs prompt, Shift + Enter inserts new line
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
                           handleRunPrompt();
@@ -815,6 +855,14 @@ export default function App() {
                 <span className="font-mono text-sm text-cyan-400 font-bold">
                   {selectedFile ? `📄 ${selectedFile}` : 'Select a file from the projects sidebar'}
                 </span>
+                {selectedFile && (
+                  <button 
+                    onClick={() => handleRunFile(selectedFile)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-bold transition cursor-pointer"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" /> Run File Directly
+                  </button>
+                )}
               </div>
               <div className="flex-1 overflow-auto mt-3 bg-[#0b0e17] border border-slate-800 rounded-xl p-4 font-mono text-xs text-slate-200 leading-relaxed">
                 <pre>{fileContent || '// Select a file from the project sidebar to inspect code...'}</pre>
