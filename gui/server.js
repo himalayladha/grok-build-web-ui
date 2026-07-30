@@ -23,12 +23,12 @@ const defaultProjectFolder = path.join(PROJECTS_ROOT, 'My-First-Project');
 if (!fs.existsSync(defaultProjectFolder)) {
   fs.mkdirSync(defaultProjectFolder, { recursive: true });
   fs.writeFileSync(
-    path.join(defaultProjectFolder, 'index.js'),
-    `console.log("Hello from Grok Build Studio!");\n`
+    path.join(defaultProjectFolder, 'index.html'),
+    `<!DOCTYPE html>\n<html>\n<head><title>My First Project</title></head>\n<body style="background:#090c15;color:#fff;font-family:sans-serif;padding:40px;">\n  <h1>Hello from Grok Build Studio! 🚀</h1>\n</body>\n</html>\n`
   );
   fs.writeFileSync(
-    path.join(defaultProjectFolder, 'README.md'),
-    `# My First Project\n\nWelcome to Grok Build Studio!\n`
+    path.join(defaultProjectFolder, 'index.js'),
+    `console.log("Hello from Grok Build Studio!");\n`
   );
 }
 
@@ -137,6 +137,10 @@ app.post('/api/projects/create', (req, res) => {
     if (!fs.existsSync(newFolderPath)) {
       fs.mkdirSync(newFolderPath, { recursive: true });
       fs.writeFileSync(
+        path.join(newFolderPath, 'index.html'),
+        `<!DOCTYPE html>\n<html>\n<head><title>${folderName}</title></head>\n<body style="background:#090c15;color:#fff;font-family:sans-serif;padding:40px;">\n  <h1>Welcome to ${folderName}! 🚀</h1>\n</body>\n</html>\n`
+      );
+      fs.writeFileSync(
         path.join(newFolderPath, 'index.js'),
         `console.log("Welcome to ${folderName}!");\n`
       );
@@ -158,7 +162,6 @@ app.post('/api/projects/delete', (req, res) => {
   try {
     fs.rmSync(projectPath, { recursive: true, force: true });
     
-    // If active workspace was deleted, fall back to default project or first available
     if (path.resolve(projectPath) === currentWorkspace) {
       const remaining = fs.readdirSync(PROJECTS_ROOT, { withFileTypes: true })
         .filter(item => item.isDirectory() && !item.name.startsWith('.'));
@@ -166,7 +169,6 @@ app.post('/api/projects/delete', (req, res) => {
       if (remaining.length > 0) {
         currentWorkspace = path.join(PROJECTS_ROOT, remaining[0].name);
       } else {
-        // Re-create default project if none left
         fs.mkdirSync(defaultProjectFolder, { recursive: true });
         currentWorkspace = defaultProjectFolder;
       }
@@ -298,12 +300,27 @@ wss.on('connection', (ws) => {
     try {
       const data = JSON.parse(message.toString());
       
-      // Action: Run Code File Directly
+      // Action: Run File Directly
       if (data.action === 'run_file') {
         const { filePath } = data;
         const absPath = path.resolve(currentWorkspace, filePath);
         const ext = path.extname(filePath).toLowerCase();
 
+        // 1. HTML Files -> Launch in default Web Browser
+        if (ext === '.html' || ext === '.htm') {
+          ws.send(JSON.stringify({ type: 'status', message: `🌐 Opening HTML page in browser: ${filePath}` }));
+          exec(`cmd /c start "" "${absPath}"`, { cwd: currentWorkspace }, (err) => {
+            if (err) {
+              ws.send(JSON.stringify({ type: 'raw_error', text: `Failed to open HTML file: ${err.message}` }));
+            } else {
+              ws.send(JSON.stringify({ type: 'raw_output', text: `✓ Opened ${filePath} in default web browser.` }));
+            }
+            ws.send(JSON.stringify({ type: 'process_exit', code: 0 }));
+          });
+          return;
+        }
+
+        // 2. JavaScript
         let cmd = '';
         let args = [];
 
@@ -329,9 +346,9 @@ wss.on('connection', (ws) => {
           cmd = 'cargo';
           args = ['run'];
         } else {
-          ws.send(JSON.stringify({ type: 'status', message: `Executing file: ${filePath}` }));
-          cmd = 'node';
-          args = [absPath];
+          ws.send(JSON.stringify({ type: 'raw_output', text: `📄 [FILE PREVIEW] ${filePath} is a document file (use Code Viewer to inspect).` }));
+          ws.send(JSON.stringify({ type: 'process_exit', code: 0 }));
+          return;
         }
 
         ws.send(JSON.stringify({ type: 'status', message: `▶️ Running file [${cmd} ${args.join(' ')}] in ${path.basename(currentWorkspace)}` }));
