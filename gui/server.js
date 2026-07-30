@@ -28,7 +28,7 @@ if (!fs.existsSync(defaultProjectFolder)) {
   );
   fs.writeFileSync(
     path.join(defaultProjectFolder, 'README.md'),
-    `# My First Project\n\nWelcome to Grok Build Studio! Click ▶️ to run files.\n`
+    `# My First Project\n\nWelcome to Grok Build Studio!\n`
   );
 }
 
@@ -148,6 +148,36 @@ app.post('/api/projects/create', (req, res) => {
   }
 });
 
+// REST API: Delete Project Folder
+app.post('/api/projects/delete', (req, res) => {
+  const { projectPath } = req.body;
+  if (!projectPath || !fs.existsSync(projectPath)) {
+    return res.status(400).json({ error: 'Project path does not exist' });
+  }
+
+  try {
+    fs.rmSync(projectPath, { recursive: true, force: true });
+    
+    // If active workspace was deleted, fall back to default project or first available
+    if (path.resolve(projectPath) === currentWorkspace) {
+      const remaining = fs.readdirSync(PROJECTS_ROOT, { withFileTypes: true })
+        .filter(item => item.isDirectory() && !item.name.startsWith('.'));
+      
+      if (remaining.length > 0) {
+        currentWorkspace = path.join(PROJECTS_ROOT, remaining[0].name);
+      } else {
+        // Re-create default project if none left
+        fs.mkdirSync(defaultProjectFolder, { recursive: true });
+        currentWorkspace = defaultProjectFolder;
+      }
+    }
+
+    res.json({ success: true, activeWorkspace: currentWorkspace });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // REST API: Switch Active Workspace
 app.post('/api/projects/switch', (req, res) => {
   const { projectPath } = req.body;
@@ -257,7 +287,7 @@ const server = app.listen(PORT, () => {
   console.log(`Grok Build GUI Backend running on http://localhost:${PORT}`);
 });
 
-// WebSocket Server for Agent Streaming & File Execution
+// WebSocket Server
 const wss = new WebSocketServer({ server, path: '/ws' });
 
 wss.on('connection', (ws) => {
@@ -299,7 +329,6 @@ wss.on('connection', (ws) => {
           cmd = 'cargo';
           args = ['run'];
         } else {
-          // Default fallback or text file display
           ws.send(JSON.stringify({ type: 'status', message: `Executing file: ${filePath}` }));
           cmd = 'node';
           args = [absPath];

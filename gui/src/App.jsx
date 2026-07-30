@@ -170,6 +170,28 @@ export default function App() {
     }
   };
 
+  const handleDeleteProject = async (projectPath, projectName) => {
+    if (!confirm(`Are you sure you want to delete project folder "${projectName}" from disk?`)) return;
+    try {
+      const res = await fetch('/api/projects/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectPath })
+      });
+      const data = await res.json();
+      if (data.success) {
+        fetchProjects();
+        if (data.activeWorkspace) {
+          setActiveWorkspace(data.activeWorkspace);
+          fetchFiles(data.activeWorkspace);
+          initWelcomeTurn(data.activeWorkspace);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to delete project:', err);
+    }
+  };
+
   const handleCreateFile = async () => {
     if (!newFileName.trim()) return;
     try {
@@ -237,7 +259,6 @@ export default function App() {
     }
   };
 
-  // Run Code File Directly
   const handleRunFile = (filePath) => {
     if (!filePath || isExecuting) return;
 
@@ -542,21 +563,33 @@ export default function App() {
               const isSelected = proj.path === activeWorkspace;
               return (
                 <div key={proj.path} className="flex flex-col">
+                  {/* Project Row */}
                   <div 
                     onClick={() => handleSwitchProject(proj.path)}
-                    className={`flex items-center justify-between px-2.5 py-2 rounded-md text-xs cursor-pointer transition ${
+                    className={`group/proj flex items-center justify-between px-2.5 py-2 rounded-md text-xs cursor-pointer transition ${
                       isSelected 
                         ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40 shadow-sm' 
                         : 'text-slate-300 hover:bg-slate-800/80'
                     }`}
                   >
-                    <div className="flex items-center gap-2 truncate">
+                    <div className="flex items-center gap-2 truncate flex-1">
                       <Folder className={`w-4 h-4 shrink-0 ${isSelected ? 'text-cyan-400' : 'text-slate-400'}`} />
                       <span className="truncate">{proj.name}</span>
                     </div>
-                    {isSelected && <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400/80" />}
+
+                    <div className="flex items-center gap-1">
+                      {isSelected && <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400/80" />}
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleDeleteProject(proj.path, proj.name); }}
+                        className="opacity-0 group-hover/proj:opacity-100 p-0.5 text-slate-400 hover:text-rose-400 transition"
+                        title="Delete Project Folder"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
+                  {/* Active Project Files */}
                   {isSelected && (
                     <div className="pl-4 pr-1 py-1 space-y-0.5 border-l-2 border-cyan-500/40 ml-3.5 my-1 font-mono text-[11px]">
                       <div className="flex items-center justify-between text-slate-400 py-1 font-sans text-[10px] uppercase tracking-wider font-bold">
@@ -572,7 +605,7 @@ export default function App() {
                         fileTree.map((file) => (
                           <div 
                             key={file.path}
-                            className="group flex items-center justify-between px-2 py-1 rounded hover:bg-slate-800 text-slate-200 transition cursor-pointer"
+                            className="group/file flex items-center justify-between px-2 py-1 rounded hover:bg-slate-800 text-slate-200 transition cursor-pointer"
                           >
                             <div 
                               onClick={() => !file.isDirectory && openFile(file.path)}
@@ -598,7 +631,7 @@ export default function App() {
                               )}
                               <button 
                                 onClick={(e) => { e.stopPropagation(); handleDeleteItem(file.path); }}
-                                className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-400 hover:text-rose-400 transition"
+                                className="opacity-0 group-hover/file:opacity-100 p-0.5 text-slate-400 hover:text-rose-400 transition"
                                 title="Delete File"
                               >
                                 <Trash2 className="w-3 h-3" />
